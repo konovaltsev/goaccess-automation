@@ -1,0 +1,36 @@
+#!/bin/bash
+
+LOG_LIST_FILE='/root/goaccess/logs'
+LOG_DIR='/var/log/apache2'
+HTML_DIR='/var/www/html/goaccess'
+
+echo "<html><head><title>LOGS</title></head><body><ul>" > $HTML_DIR/index.html
+
+while IFS=' ' read -r NAME FORMAT
+do
+  if [ "$FORMAT" == '' ]; then
+    FORMAT='COMBINED';
+  fi
+
+  LOG_FILE_CUR="${LOG_DIR}/${NAME}.log"
+  LOG_FILE_PREV="${LOG_DIR}/${NAME}.log.*[^a-z]"
+  LOG_FILE_ARC="${LOG_DIR}/${NAME}.log.*.gz"
+
+  if [ ! -f "$LOG_FILE_CUR" ]; then
+    continue
+  fi
+
+  CAT_CMD="cat $LOG_FILE_CUR";
+  if ls $LOG_FILE_PREV >/dev/null 2>&1; then
+    CAT_CMD="$CAT_CMD $LOG_FILE_PREV"
+  fi
+  if ls $LOG_FILE_ARC >/dev/null 2>&1; then
+    CAT_CMD="zcat $LOG_FILE_ARC && $CAT_CMD"
+  fi
+
+  eval "(${CAT_CMD}) | goaccess - --log-format=$FORMAT --output=${HTML_DIR}/${NAME}.html >/dev/null 2>&1"
+  HTML_SIZE=$(stat -c%s "${HTML_DIR}/${NAME}.html" | numfmt --to=iec)
+  echo "<li><a href=\"${NAME}.html\">${NAME}</a> <small>[${HTML_SIZE}]</small></li>" >> $HTML_DIR/index.html
+done < $LOG_LIST_FILE
+
+echo "</ul></body></html>" >> $HTML_DIR/index.html
